@@ -46,7 +46,7 @@ NAME_COMPANY_SEARCH     = os.getenv("NAME_COMPANY_SEARCH")
 FUSIC_SOLUTIONS_SEARCH  = os.getenv("FUSIC_SOLUTIONS_SEARCH")
 CSE_SEARCH_NUMBER       = int(os.getenv("SEARCH_NUMBER", 3))
 
-ALLOW_ORIGINS = ["http://localhost:5173"]
+ALLOW_ORIGINS = ["http://localhost:5173, https://686f4cdcb5a535d805e636e3--business-card-analyzer.netlify.app"]
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -178,6 +178,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def health_check():
+    return {"status": "ok"}
 
 @app.post("/upload-image")
 async def upload_image(file: UploadFile = File(...)):
