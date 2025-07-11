@@ -78,7 +78,7 @@ def embed_query(text: str) -> List[float]:
 
 @tool
 def search_topic_from_index(query: str) -> str:
-    """Pinecone ベクトル検索でご興味のありそうな情報を取得"""
+    """Pinecone ベクトル検索でブース情報とご興味のありそうな情報を取得"""
     vec = embed_query(query)
     rsp = index.query(vector=vec, top_k=TOP_K, include_metadata=True)
     return "\n---\n".join(m.metadata["text"] for m in rsp.matches) if rsp.matches else "関連トピックが見つかりませんでした。"
@@ -125,7 +125,7 @@ agent = Agent(
 あなたは名刺情報を基に以下を実施するアシスタントです。
 
 1. **search_name_and_company** で人物・会社概要を取得
-2. **search_topic_from_index** でDiscoveryのイベント情報と最新ITトレンドを元に、ご興味のありそうな情報を3つ生成
+2. **search_topic_from_index** でDiscoveryのイべント情報と最新ITトレンドを元に、ブース情報1つとご興味のありそうな情報を2つ生成
 3. **get_fusic_solutions** で Fusic の開発事例を 3 件取得
 
 ### 出力フォーマット
@@ -134,11 +134,11 @@ agent = Agent(
     <人物と会社の要約を記載してください>
 
     【Discovery Event ＆ その他情報】
-    1. <情報1（太字）>
+    1. <ブース情報（太字）>
         情報のまとめ
-    2. <情報2（太字）>
+    2. <情報1（太字）>
         情報のまとめ
-    3. <情報3（太字）>
+    3. <情報2（太字）>
         情報のまとめ
 
     【Fusicから提案可能な開発事例】
@@ -254,11 +254,11 @@ async def upload_image(file: UploadFile = File(...)):
         <人物と会社の要約を記載してください>
 
         【Discovery Event ＆ その他情報】
-        1. <情報1（太字）>
+        1. <ブース情報（太字）>
             情報のまとめ
-        2. <情報2（太字）>
+        2. <情報1（太字）>
             情報のまとめ
-        3. <情報3（太字）>
+        3. <情報2（太字）>
             情報のまとめ
 
         【Fusicから提案可能な開発事例】
