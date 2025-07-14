@@ -26,7 +26,7 @@ from pydantic import BaseModel
 from s3_service import S3Service
 
 from info_extract import extract_information
-from upsert_topics import upsert_topics
+from upsert import upsert_topics
 
 # ---------------------------------------------------------------------------
 # Environment
@@ -38,7 +38,8 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 
 OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY")
 PINECONE_API_KEY= os.getenv("PINECONE_API_KEY")
-PINECONE_INDEX_NAME  = os.getenv("PINECONE_INDEX_NAME")
+PINECONE_BOOTH_INDEX_NAME  = os.getenv("PINECONE_BOOTH_INDEX_NAME")
+PINECONE_TOPIC_INDEX_NAME = os.getenv("PINECONE_TOPIC_INDEX_NAME")
 PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
 
 GOOGLE_API_KEY          = os.getenv("GOOGLE_API_KEY")
@@ -59,7 +60,8 @@ LOG = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 pinecone = Pinecone(api_key=os.getenv("PINECONE_API_KEY"), environment=os.getenv("PINECONE_ENVIRONMENT"))
-index = pinecone.Index(PINECONE_INDEX_NAME)
+booth_index = pinecone.Index(PINECONE_BOOTH_INDEX_NAME)
+topic_index = pinecone.Index(PINECONE_TOPIC_INDEX_NAME)
 
 # S3サービスの初期化
 s3_service = S3Service()
@@ -77,12 +79,18 @@ def embed_query(text: str) -> List[float]:
 # ---------------------------------------------------------------------------
 
 @tool
-def search_topic_from_index(query: str) -> str:
-    """Pinecone ベクトル検索でブース情報とご興味のありそうな情報を取得"""
+def search_booth_from_index(query: str) -> str:
+    """Pinecone ベクトル検索でブース情報を取得"""
     vec = embed_query(query)
-    rsp = index.query(vector=vec, top_k=TOP_K, include_metadata=True)
-    return "\n---\n".join(m.metadata["text"] for m in rsp.matches) if rsp.matches else "関連トピックが見つかりませんでした。"
+    rsp = booth_index.query(vector=vec, top_k=TOP_K, include_metadata=True)    
+    return "\n---\n".join(m.metadata["text"] for m in rsp.matches) if rsp.matches else "関連ブース情報が見つかりませんでした。"
 
+@tool
+def search_topic_from_index(query: str) -> str:
+    """Pinecone ベクトル検索でご興味のありそうな情報を取得"""
+    vec = embed_query(query)
+    rsp = topic_index.query(vector=vec, top_k=TOP_K, include_metadata=True)
+    return "\n---\n".join(m.metadata["text"] for m in rsp.matches) if rsp.matches else "関連トピックが見つかりませんでした。"
 
 @tool
 def search_name_and_company(name: str, company_name: str) -> str:
@@ -120,13 +128,14 @@ def get_fusic_solutions(query: str) -> str:
 # ---------------------------------------------------------------------------
 
 agent = Agent(
-    tools=[search_name_and_company, search_topic_from_index, get_fusic_solutions],
+    tools=[search_name_and_company, search_booth_from_index, search_topic_from_index, get_fusic_solutions],
     system_prompt="""
 あなたは名刺情報を基に以下を実施するアシスタントです。
 
 1. **search_name_and_company** で人物・会社概要を取得
-2. **search_topic_from_index** でDiscoveryのイべント情報と最新ITトレンドを元に、ブース情報1つとご興味のありそうな情報を2つ生成
-3. **get_fusic_solutions** で Fusic の開発事例を 3 件取得
+2. **search_booth_from_index** でDiscoveryのイべント情報と最新ITトレンドを元に、ブース情報1つを生成
+3. **search_topic_from_index** でDiscoveryのイべント情報と最新ITトレンドを元に、ご興味のありそうな情報を2つ生成
+4. **get_fusic_solutions** で Fusic の開発事例を 3 件取得
 
 ### 出力フォーマット
     ---
@@ -135,7 +144,7 @@ agent = Agent(
 
     【Discovery Event ＆ その他情報】
     【Discovery Event ＆ その他情報】
-    1. ブース情報（太字）
+    1. イベント情報（太字）
         <ブース情報のまとめを記載してください>
     2. 情報1（太字）
         <情報のまとめを記載してください>
@@ -246,8 +255,9 @@ async def upload_image(file: UploadFile = File(...)):
         この情報をもとに、以下を調査・出力してください。内容は簡潔に要点を押さえて出力してください：
 
         1. 名刺情報から人物と社概要を取得してください。
-        2. Discoveryのイベント情報と最新ITトレンドを元に、ブース情報1つとご興味のありそうな情報を2つ生成
-        3. 上記の情報をもとに、Fusic の開発事例から関心がありそうなものを選定・提示してください
+        2. Discoveryのイベント情報と最新ITトレンドを元に、ブース情報1つを生成してください。
+        3. Discoveryのイベント情報と最新ITトレンドを元に、ご興味のありそうな情報を2つ生成してください。
+        4. 上記の情報をもとに、Fusic の開発事例から関心がありそうなもの3つを選定・提示してください。
 
         出力形式：
         ---
@@ -255,7 +265,7 @@ async def upload_image(file: UploadFile = File(...)):
         <人物と会社の要約を記載してください>
 
         【Discovery Event ＆ その他情報】
-        1. ブース情報
+        1. イベント情報
             <ブース情報のまとめを記載してください>
         2. 情報1
             <情報のまとめを記載してください>
